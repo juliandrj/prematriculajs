@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="">
+<head>
+<meta charset="utf-8">
+<meta name="description" content="">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prematricula</title>
+
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<!-- Place favicon.ico in the root directory -->
+
+<!-- build:css styles/vendor.css -->
+<!-- bower:css -->
+<link rel="stylesheet" href="/bower_components/bootstrap/dist/css/bootstrap.css" />
+<link rel="stylesheet" href="/bower_components/animate.css/animate.css" />
+<link rel="stylesheet" href="/bower_components/components-font-awesome/css/font-awesome.css" />
+<link rel="stylesheet" href="/bower_components/perfect-scrollbar/css/perfect-scrollbar.css" />
+<!-- endbower -->
+<!-- endbuild -->
+
+<!-- build:css styles/main.css -->
+<link rel="stylesheet" href="styles/main.css">
+<!-- endbuild -->
+
+</head>
+<body>
+	<!--[if lt IE 10]>
+	<div class="browserupgrade">
+		<div class="well">You are using an <strong>outdated</strong> browser. Please <a href="http://browsehappy.com/">upgrade your browser</a> to improve your experience.</div>
+	</div>
+	<![endif]-->
+	<div class="container-fluid">
+		<div class="panel panel-primary" data-bind="with: user">
+			<div class="panel-heading">
+				<h3 class="panel-title">
+					Bienvenido a su prematricula:
+					<strong>
+						<span data-bind="text: apellidos"></span> <span data-bind="text: nombes"></span> <span data-bind="text: codigo"></span> <span data-bind="text: facultad.nombreFacultad"></span>
+					</strong>
+				</h3>
+			</div>
+		</div>
+		<div id="oferta" class="panel panel-primary" data-bind="ifnot: _.isEmpty(oferta())">
+			<div class="panel-heading">
+				<h3 class="panel-title">Recuerde que no le muestra las asignaturas que NO puede cursar por prerrequisito, si una asignatura no est&aacute; programada en el horario comun&iacute;quese con el Programa.</h3>
+			</div>
+			<div class="table-responsive panel-scroll barra">
+				<table id="tMatPlan" class="table table-hover">
+					<thead>
+						<tr>
+							<th>Semestre</th>
+							<th>Codigo</th>
+							<th>Materia plan</th>
+							<th>Creditos</th>
+						</tr>
+						<tr>
+							<th colspan="4">De clic sobre la materia para ver los horarios disponibles.</th>
+						</tr>
+					</thead>
+					<tbody data-bind="foreach: oferta">
+						<tr class="mplan" data-bind="attr: {id: codMateria}, click: $root.verHorarios">
+							<td data-bind="text: semestre"></td>
+							<td data-bind="text: codMateria"></td>
+							<td data-bind="text: nombreMateria"></td>
+							<td data-bind="text: creditos"></td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+		</div>
+		<div id="prematricula" class="panel panel-primary" data-bind="ifnot: _.isEmpty(prematricula())">
+			<div class="panel-heading">
+				<h3 class="panel-title">Asignaturas prematriculadas</h3>
+			</div>
+			<div class="table-responsive">
+				<table id="tPrematricula" class="table table-bordered table-hover texto-sm">
+					<thead>
+						<tr>
+							<th colspan="5">Materia Plan</th>
+							<th colspan="4">Materia Cursar</th>
+							<th colspan="8">Horario</th>
+						</tr>
+						<tr>
+							<th>Sem.</th>
+							<th>Cod.</th>
+							<th>Materia</th>
+							<th>Crs.</th>
+							<th>I.h.</th>
+							<th>Sede</th>
+							<th>Facultad</th>
+							<th>Cod.</th>
+							<th>Materia</th>
+							<th>Gr.</th>
+							<th>Lun</th>
+							<th>Mar</th>
+							<th>Mie</th>
+							<th>Jue</th>
+							<th>Vie</th>
+							<th>Sab</th>
+							<th><span class="glyphicon glyphicon-trash" aria-hidden="true"></span></th>
+						</tr>
+					</thead>
+					<tbody data-bind="foreach: prematricula">
+						<tr>
+							<td data-bind="text: semestre"></td>
+							<td data-bind="text: codMateria"></td>
+							<td data-bind="text: nombreMateria"></td>
+							<td data-bind="text: creditos"></td>
+							<td data-bind="text: intencidadHoraria"></td>
+							<td data-bind="text: grupos[0].facultadCursar.sede.sede"></td>
+							<td data-bind="text: grupos[0].facultadCursar.nombreFacultad"></td>
+							<td data-bind="text: grupos[0].materiaCursar.codMateria"></td>
+							<td data-bind="text: grupos[0].materiaCursar.nombreMateria"></td>
+							<td data-bind="text: grupos[0].grupo"></td>
+							<!-- ko template: {name: 'tmp-horario', data: grupos[0].horario} --><!-- /ko -->
+							<td>&nbsp;</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+		</div>
+	</div>
+	<!-- MODALES -->
+	<div id="loading" class="modal" tabindex="-1" role="dialog" data-backdrop="static" data-keyboard="false">
+		<div class="modal-dialog">
+			<div class="modal-content">
+				<div class="modal-body">
+					<h3>cargando...</h3>
+					<div class="progress">
+						<div class="progress-bar progress-bar-striped active"
+							role="progressbar" aria-valuenow="100" aria-valuemin="0"
+							aria-valuemax="100" style="width: 100%">
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div id="aviso" class="modal" tabindex="-1" role="dialog" data-backdrop="static" data-keyboard="false">
+		<div class="modal-dialog">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h3 class="modal-title" data-bind="text: aviso().header"></h3>
+				</div>
+				<div class="modal-body">
+					<div class="row">
+						<div class="col-sm-4 text-center" style="font-size: 4em;">
+							<span class="glyphicon glyphicon-remove-sign text-danger" aria-hidden="true" data-bind="visible: aviso().level == 1"></span>
+							<span class="glyphicon glyphicon-info-sign text-warning" aria-hidden="true" data-bind="visible: aviso().level == 2"></span>
+							<span class="glyphicon glyphicon-ok-sign text-success" aria-hidden="true" data-bind="visible: aviso().level == 3"></span>
+						</div>
+						<div class="col-sm-8">
+							<h4 data-bind="text: aviso().body"></h4>
+						</div>
+					</div>
+				</div>
+				<!-- ko if: aviso().closeable -->
+				<div class="modal-footer">
+					<button type="button" class="btn btn-primary" data-dismiss="modal">
+						<span class="glyphicon glyphicon-remove-sign" aria-hidden="true"></span>
+						cerrar
+					</button>
+				</div>
+				<!-- /ko -->
+			</div>
+		</div>
+	</div>
+	<div id="gruposModal" class="modal fade" tabindex="-1" aria-labelledby="gruposModalLabel" role="dialog" aria-hidden="true" data-backdrop="static" data-keyboard="false" data-bind="if: mPlan">
+		<div class="modal-dialog ancho" data-bind="with: mPlan">
+			<div class="modal-content">
+				<div class="modal-header">
+					<button type="button" class="close" data-dismiss="modal"><span class="glyphicon glyphicon-remove-circle" aria-hidden="true"></span></button>
+					<h4 class="modal-title" id="gruposModalLabel">
+						Seleccione un horario: <span data-bind="text: codMateria"></span> <span data-bind="text: nombreMateria"></span>
+					</h4>
+				</div>
+				<div class="modal-body barra">
+					<table id="tGrupos" class="table table-hover table-bordered texto-sm">
+						<thead>
+							<tr>
+								<th>Sede</th>
+								<th>Facultad</th>
+								<th>Cod. Materia</th>
+								<th>Materia Cursar</th>
+								<th>Grupo</th>
+								<th>Cupo</th>
+								<th>Lun</th>
+								<th>Mar</th>
+								<th>Mie</th>
+								<th>Jue</th>
+								<th>Vie</th>
+								<th>Sab</th>
+							</tr>
+							<tr>
+								<th colspan="12">De clic sobre el grupo para prematricularlo.</th>
+							</tr>
+						</thead>
+						<tbody data-bind="foreach: grupos">
+							<tr class="grupo" data-bind="attr: {id: consecutivo}, click: $root.inscribir, css: {danger: $index % 2 == 0}"> <!-- , css: {danger: cruce} -->
+								<td data-bind="text: facultadCursar.sede.sede"></td>
+								<td data-bind="text: facultadCursar.nombreFacultad"></td>
+								<td data-bind="text: materiaCursar.codMateria"></td>
+								<td data-bind="text: materiaCursar.nombreMateria"></td>
+								<td data-bind="text: grupo"></td>
+								<td class="text-center">
+									<span data-bind="if: cupo"><span class="glyphicon glyphicon-ok"></span></span>
+									<span data-bind="ifnot: cupo"><span class="glyphicon glyphicon-warning-sign"></span></span>
+								</td>
+								<!-- ko template: {name: 'tmp-horario', data: horario} --><!-- /ko -->
+							</tr>
+						</tbody>
+						<tfoot>
+							<tr>
+								<td colspan="12" class="text-primary">Los horarios en color azul son laboratorios.</td>
+							</tr>
+						</tfoot>
+					</table>
+				</div>
+			</div>
+		</div>
+	</div>
+	<!-- fin MODALES -->
+	<script id="tmp-horario" type="text/html">
+		<!-- ko foreach: $data -->
+			<!-- ko if: _.isNull($data) -->
+				<td>&nbsp;</td>
+			<!-- /ko -->
+			<!-- ko ifnot: _.isNull($data) -->
+				<td>
+					<ul class="horario">
+						<!-- ko foreach: $data.hora -->
+							<li data-bind="css: {'text-primary': !_.isUndefined($data.practica) && $data.practica > 0}">
+								<span data-bind="text: formatearHora($data.inicio)"></span>-<span data-bind="text: formatearHora($data.fin)"></span> <span data-bind="text: $data.salon"></span>
+							</li>
+						<!-- /ko -->
+					</ul>
+				</td>
+			<!-- /ko -->
+		<!-- /ko -->
+	</script>
+	<!-- Google Analytics: change UA-XXXXX-X to be your site's ID. -->
+	<script>
+		(function(b,o,i,l,e,r){b.GoogleAnalyticsObject=l;b[l]||(b[l]=
+		function(){(b[l].q=b[l].q||[]).push(arguments)});b[l].l=+new Date;
+		e=o.createElement(i);r=o.getElementsByTagName(i)[0];
+		e.src='https://www.google-analytics.com/analytics.js';
+		r.parentNode.insertBefore(e,r)}(window,document,'script','ga'));
+		ga('create','UA-XXXXX-X');ga('send','pageview');
+	</script>
+
+	<!-- build:js scripts/vendor.js -->
+	<!-- bower:js -->
+	<script src="/bower_components/jquery/dist/jquery.js"></script>
+	<script src="/bower_components/underscore/underscore.js"></script>
+	<script src="/bower_components/knockout/dist/knockout.js"></script>
+	<script src="/bower_components/moment/moment.js"></script>
+	<script src="/bower_components/perfect-scrollbar/js/perfect-scrollbar.jquery.js"></script>
+	<script src="/bower_components/perfect-scrollbar/js/perfect-scrollbar.js"></script>
+	<script src="/bower_components/moment-range/dist/moment-range.js"></script>
+	<script src="/bower_components/remarkable-bootstrap-notify/bootstrap-notify.js"></script>
+	<!-- endbower -->
+	<!-- endbuild -->
+
+	<!-- build:js scripts/plugins.js -->
+	<script src="/bower_components/bootstrap/js/affix.js"></script>
+	<script src="/bower_components/bootstrap/js/alert.js"></script>
+	<script src="/bower_components/bootstrap/js/dropdown.js"></script>
+	<script src="/bower_components/bootstrap/js/tooltip.js"></script>
+	<script src="/bower_components/bootstrap/js/modal.js"></script>
+	<script src="/bower_components/bootstrap/js/transition.js"></script>
+	<script src="/bower_components/bootstrap/js/button.js"></script>
+	<script src="/bower_components/bootstrap/js/popover.js"></script>
+	<script src="/bower_components/bootstrap/js/carousel.js"></script>
+	<script src="/bower_components/bootstrap/js/scrollspy.js"></script>
+	<script src="/bower_components/bootstrap/js/collapse.js"></script>
+	<script src="/bower_components/bootstrap/js/tab.js"></script>
+	<script src="/bower_components/moment/locale/es.js"></script>
+	<!-- endbuild -->
+
+	<!-- build:js scripts/main.js -->
+	<script src="scripts/main.js"></script>
+	<!-- endbuild -->
+</body>
+</html>
