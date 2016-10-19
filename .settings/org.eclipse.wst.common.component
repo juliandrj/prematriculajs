@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?><project-modules id="moduleCoreId" project-version="1.5.0">
+    <wb-module deploy-name="prematriculajs">
+        <wb-resource deploy-path="/" source-path="/www/dist"/>
+        <property name="context-root" value="prematriculajs"/>
+    </wb-module>
+</project-modules>

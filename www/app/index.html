@@ -113,7 +113,14 @@
 							<td data-bind="text: grupos[0].materiaCursar.nombreMateria"></td>
 							<td data-bind="text: grupos[0].grupo"></td>
 							<!-- ko template: {name: 'tmp-horario', data: grupos[0].horario} --><!-- /ko -->
-							<td>&nbsp;</td>
+							<td class="text-center">
+								<!-- ko if: grupos[0].eliminable == 1 -->
+								<button class="btn btn-danger btn-xs" type="button" title="eliminar" data-bind="click: $root.eliminar" ><i class="fa fa-trash" aria-hidden="true"></i></button>
+								<!-- /ko -->
+								<!-- ko ifnot: grupos[0].eliminable == 1 -->
+								&nbsp;
+								<!-- /ko -->
+							</td>
 						</tr>
 					</tbody>
 				</table>

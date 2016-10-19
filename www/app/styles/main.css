@@ -7,6 +7,9 @@ body {
 	padding-top: 20px;
 	padding-bottom: 20px;
 }
+th {
+	text-align: center;
+}
 .texto-sm {
 	font-size: 0.75em;
 }

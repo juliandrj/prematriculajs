@@ -1,5 +1,30 @@
 var codigo = '50161018';
 //UTILITARIOS
+var alerta = function (texto, tipo) {
+	var tipotxt = undefined;
+	switch(tipo) {
+	case 1:
+		tipotxt = 'info';
+		break;
+	case 2:
+		tipotxt = 'success';
+		break;
+	case 3:
+		tipotxt = 'warning';
+		break;
+	case 4:
+		tipotxt = 'danger';
+		break;
+	default:
+		tipotxt = 'info';
+	}
+	$.notify({
+		message: texto
+	},{
+		type: tipotxt,
+		z_index: 1090
+	});
+};
 var formatearHora = function (hora) {
 	return _.isUndefined(hora) ? '' : hora.substring(0, 2);
 };
@@ -50,6 +75,12 @@ var validarCruce = function (gr, rgs2, marcar) {
 	});
 	return seCruza;
 };
+var validarCruceIns = function (gr, grs) {
+	if (_.isEmpty(grs)) {
+		return false;
+	}
+	return validarCruce(gr, crearRangos(_.flatten(_.pluck(_.flatten(_.pluck(grs, 'grupos')), 'horario'))), false);
+};
 var marcarCruces = function (grs1, grs2) {
 	var rgs2 = crearRangos(_.flatten(_.pluck(grs2, 'horario')));
 	_.each(grs1, function (gr) {
@@ -69,8 +100,9 @@ var PrematriculaVM = function () {
 			$(this).removeClass('info');
 		});
 		_.each(newPrem, function (p) {
-			if (!$('#' + p.codMateria).hasClass('danger')) {
-				$('#' + p.codMateria).addClass('info');
+			var m = $('#' + p.codMateria);
+			if (!m.hasClass('danger')) {
+				m.addClass('info');
 			}
 		});
 	});
@@ -185,14 +217,15 @@ var PrematriculaVM = function () {
 						if (_.isEmpty(c)) {
 							$('#loading').modal('hide');
 							cupos.push({codMateria: mPlan.codMateria});
-							$('#' + mPlan.codMateria).removeClass('info');
-							$('#' + mPlan.codMateria).addClass('danger');
-							$.notify({
-								message: 'No existen grupos con cupo para esta materia.'
-							},{
-								type: 'danger',
-								z_index: 1090
-							});
+							mPlan.grupos = [];
+							var m = $('#' + mPlan.codMateria);
+							if (m.hasClass('info')) {
+								m.addClass('success');
+							} else {
+								m.addClass('danger');
+							}
+							m.removeClass('info');
+							alerta('No existen grupos con cupo para esta materia.', 4);
 							$('#' + mPlan.codMateria).animateCss('shake');
 							return;
 						}
@@ -227,12 +260,11 @@ var PrematriculaVM = function () {
 		} else {
 			if ($('#' + mPlan.codMateria).hasClass('danger')) {
 				$('#' + mPlan.codMateria).animateCss('shake');
-				$.notify({
-					message: 'No existen grupos con cupo para esta materia.'
-				},{
-					type: 'danger',
-					z_index: 1090
-				});
+				alerta('No existen grupos con cupo para esta materia.', 4);
+				return;
+			} else if ($('#' + mPlan.codMateria).hasClass('success')) {
+				$('#' + mPlan.codMateria).animateCss('shake');
+				alerta('No existen grupos con cupo para esta materia, pero no se preocupe, usted ya la tiene prematriculada.', 4);
 				return;
 			}
 			self.mPlan(mPlan);
@@ -244,23 +276,34 @@ var PrematriculaVM = function () {
 		}
 	};
 	self.inscribir = function (grupo, event) {
-		if ($(event.currentTarget).hasClass('danger')) {
+		if (!_.isUndefined(_.findWhere(self.prematricula(), {codMateria: self.mPlan().codMateria}))) {
 			$(event.currentTarget).animateCss('shake');
-			$.notify({
-				message: 'No puede inscribir este horario porque presenta un cruce con su prematricula.'
-			},{
-				type: 'warning',
-				z_index: 1090
-			});
+			alerta('Materia ya prematriculada.', 3);
+			return false;
+		} else if ($(event.currentTarget).hasClass('danger') || validarCruceIns(grupo, self.prematricula())) {
+			$(event.currentTarget).animateCss('shake');
+			alerta('No puede inscribir este horario porque presenta un cruce con su prematricula.', 3);
 			return false;
 		}
-		$(event.currentTarget).animateCss('bounceIn');
-		$.notify({
-			message: 'Materia inscrita con exito.'
-		},{
-			type: 'success',
-			z_index: 1090
-		});
+		var m = _.clone(self.mPlan());
+		m.grupos = [];
+		m.grupos.push(grupo);
+		self.prematricula.push(m);
+		alerta('Materia inscrita con exito.', 2);
+		$('#gruposModal').modal('hide');
+	};
+	self.eliminar = function (grupo) {
+		self.prematricula.remove(grupo);
+		var m = $('#' + grupo.codMateria);
+		if (m.hasClass('success')) {
+			m.removeClass('success');
+			var mp = _.findWhere(self.oferta(), {codMateria: grupo.codMateria});
+			if (!_.isUndefined(mp) && _.isEmpty(mp.grupos)) {
+				mp.grupos = grupo.grupos;
+				mp.grupos[0].cupo = 1;
+			}
+		}
+		alerta('Grupo eliminado con exito.', 2);
 	};
 	self.validarRespuesta = function (data, bloqueante) {
 		if (!_.isUndefined(data.exception) || (!_.isUndefined(data.status) && data.status != 'ok')) {
