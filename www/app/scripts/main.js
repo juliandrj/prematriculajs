@@ -1,4 +1,4 @@
-var codigo = '50161018';
+var codigo = '40162032';
 //UTILITARIOS
 var alerta = function (texto, tipo) {
 	var tipotxt = undefined;
@@ -87,6 +87,15 @@ var marcarCruces = function (grs1, grs2) {
 		validarCruce(gr, rgs2, true);
 	});
 };
+var sumarCreditos = function (prematricula, propia) {
+	var crd = 0;
+	_.each(prematricula, function (g) {
+		if (g.propia == (propia ? 1 : 0)) {
+			crd += g.creditos;
+		}
+	});
+	return crd;
+};
 //FIN UTILITARIOS
 //Objeto para mantener saber cuales materias ya fueron filtradas por cupo.
 var cupos = [];
@@ -94,6 +103,8 @@ var cupos = [];
 var PrematriculaVM = function () {
 	var self = this;
 	self.user = ko.observable();
+	self.userDt = ko.observable();
+	self.creditosMax = ko.observableArray();
 	self.prematricula = ko.observableArray();
 	self.prematricula.subscribe(function (newPrem) {
 		$('#tMatPlan tbody tr').each(function () {
@@ -105,11 +116,172 @@ var PrematriculaVM = function () {
 				m.addClass('info');
 			}
 		});
+		newPrem = _.sortBy(newPrem, function (g) {return g.semestre + g.codMateria;});
 	});
+	//FUNCIONES PARA QUIENES TIENEN MINIMO DE CREDITOS A PREMATRICULAR
+	self.tieneMinCreditos = function () {
+		var re = new RegExp("^NV|RI$");
+		return !_.isUndefine(self.user()) && re.test(self.user().perfil);
+	};
+	self.minCreditos = function () {
+		if (self.user().perfil == 'RI') {
+			return 9;
+		} else if (self.user().perfil == 'NV') {
+			return self.crMax();
+		}
+	};
+	//FIN MINIMO CREDITOS
+	//------------------------------------------------------------------------------
+	//FUNCIONES PARA EL CALCULO DEL RESUMEN DE CREDITOS
+	// 1. SEMESTRE INFERIOR
+	self.semestreInf = function () {
+		var p = _.reject(self.prematricula(), function (g) {return g.propia != 1;});
+		if (self.user().perfil == 'NV') {
+			return 1;
+		} else if (_.isEmpty(p)) {
+			return 0;
+		}
+		return _.min(_.pluck(p, 'semestre'));
+	};
+	self.semestreInfDt = function () {
+		if (_.isUndefined(self.userDt())) {
+			return undefined;
+		}
+		return self.userDt().semestreInferior;
+	};
+	self.semestreInfResumen = function () {
+		if (self.semestreInf() <= 0) {
+			return self.semestreInfDt();
+		} else if (self.semestreInfDt() <= 0) {
+			return self.semestreInf();
+		}
+		return _.min([self.semestreInf(), self.semestreInfDt()]);
+	};
+	// 2. SUMATORIA DE CREDITOS PREMATRICULADOS
+	self.sumCreds = function () {
+		return sumarCreditos(self.prematricula(), true);
+	};
+	self.sumCredsPrn = function () {
+		var uno = self.sumCreds();
+		var cmax = self.crMax();
+		return cmax < uno ? cmax + ' (' + (uno - cmax) + ')' : uno + '(0)';
+	};
+	self.sumCredsDt = function () {
+		return sumarCreditos(self.prematricula(), false);
+	};
+	self.sumCredsDtPrn = function () {
+		var uno = self.sumCredsDt();
+		var cmax = self.crMaxDt();
+		return cmax < uno ? cmax + ' (' + (uno - cmax) + ')' : uno + '(0)';
+	};
+	self.sumCredsResumen = function () {
+		if (_.isUndefined(self.userDt())) {
+			return undefined;
+		}
+		var uno = self.sumCreds();
+		var dos = self.sumCredsDt();
+		var credMax = self.crMaxResumen();
+		return credMax < uno + dos ? credMax + ' (' + (uno + dos - credMax) + ')' : (uno + dos) + ' (0)';
+	};
+	// 3. CREDITOS MAXIMOS POR SEMESTRE INFERIOR
+	self.crMax = function () {
+		if (_.isEmpty(self.creditosMax())) {
+			return 0;
+		}
+		var cm = _.findWhere(self.creditosMax(), {semestre: self.semestreInf()});
+		return _.isUndefined(cm) ? 0 : cm.creditos;
+	};
+	self.crMaxDt = function () {
+		if (_.isUndefined(self.userDt())) {
+			return undefined;
+		}
+		return self.userDt().creditosMax;
+	};
+	self.crMaxResumen = function () {
+		if (_.isUndefined(self.userDt())) {
+			return undefined;
+		}
+		if (self.sumCreds() > self.sumCredsDt()) {
+			return self.crMax();
+		} else if (self.sumCreds() < self.sumCredsDt()) {
+			return self.crMaxDt();
+		} else if (self.semestreInf() < self.semestreInfDt()) {
+			return self.crMax();
+		} else if (self.semestreInf() > self.semestreInfDt()) {
+			return self.crMaxDt();
+		} else {
+			if (self.user().codigo < self.userDt().codigo) {
+				return self.crMax();
+			}
+			return self.crMaxDt();
+		}
+	};
+	// 4. RESUMEN TOTAL PARA DT
+	self.resumenCrs = ko.computed(function () {
+		if (_.isUndefined(self.user())) {
+			return [];
+		} else if (_.isUndefined(self.userDt())) {
+			return [{cod: self.user().codigo, semInf: self.semestreInf(), crMax: self.crMax(), crExt: self.user().creditosExtra, sumCreds: self.sumCredsPrn()}];
+		}
+		return [
+			{cod: self.user().codigo, semInf: self.semestreInf(), crMax: self.crMax(), crExt: self.user().creditosExtra, sumCreds: self.sumCredsPrn(), resumen: 0},
+			{cod: self.userDt().codigo, semInf: self.semestreInfDt(), crMax: self.crMaxDt(), crExt: self.userDt().creditosExtra, sumCreds: self.sumCredsDtPrn(), resumen: 0},
+			{cod: null, semInf: self.semestreInfResumen(), crMax: self.crMaxResumen(), crExt: null, sumCreds: self.sumCredsResumen(), resumen: 1}
+		];
+	}, self);
+	//FIN RESUMEN CREDITOS
 	self.oferta = ko.observableArray();
 	self.mPlan = ko.observable();
+	self.mPlanDel = ko.observable();
+	self.validarCredMax = function (mt, add) {
+		var si = self.semestreInf();
+		if (add) {
+			si = si == 0 || si > mt.semestre ? mt.semestre : si;
+		} else {
+			var newprem = _.reject(self.prematricula(), function (g) {return g.codMateria == mt.codMateria;});
+			if (_.isEmpty(newprem)) {
+				return true;
+			}
+			si = _.min(_.pluck(_.reject(newprem, function (g) {return g.semestre <= 0;}), 'semestre'));
+		}
+		var cm = _.findWhere(self.creditosMax(), {semestre: si});
+		if (_.isUndefined(cm)) {
+			return false;
+		}
+		return self.sumCreds() + (mt.creditos * (add ? 1 : -1)) <= cm.creditos;
+	};
+	self.loadCreditosMax = function () {
+		if (_.isUndefined(self.user())) {
+			alerta('Sin estudiante no se puede calcular los creditos maximos.', 4);
+			return;
+		}
+		$.ajax({
+			url: 'http://zeus.lasalle.edu.co/oar/prematricula/cualquiera.php?opt=pr_oferta_json&p_opcion=4&p_codigo=' + self.user().codigo,
+			type: 'get',
+			dataType: 'json',
+			contentType: 'application/json;charset=utf-8',
+			success: function (data) {
+				try {
+					self.validarRespuesta(data, true);
+					self.creditosMax(data);
+				} catch (err) {
+					if (err != 'mensaje') {
+						$('#loading').modal('hide');
+						self.aviso({level: 1, header: 'Mensaje muy importante', body: err, closeable: false});
+						$('#aviso').modal();
+					}
+				}
+			},
+			error: function (jqXHR, textStatus, errorThrown) {
+				$('#loading').modal('hide');
+				self.aviso({level: 1, header: 'No se logro porcesar la solicitud', body: !_.isUndefined(jqXHR.responseJSON) && !_.isUndefined(jqXHR.responseJSON.mensaje) ? jqXHR.responseJSON.mensaje : errorThrown, closeable: false});
+				$('#aviso').modal();
+			}
+		});
+	};
 	self.loadUser = function () {
 		$('#loading').modal();
+		self.userDt(undefined);
 		$.ajax({
 			url: 'http://zeus.lasalle.edu.co/oar/prematricula/cualquiera.php?opt=pr_oferta_json&p_opcion=3&p_codigo=' + codigo,
 			type: 'get',
@@ -121,6 +293,32 @@ var PrematriculaVM = function () {
 					self.user(data);
 					$('#loading').modal('hide');
 					self.loadOfert();
+					self.loadCreditosMax();
+					if (!_.isUndefined(data.codigoContrario)) {
+						$.ajax({
+							url: 'http://zeus.lasalle.edu.co/oar/prematricula/cualquiera.php?opt=pr_oferta_json&p_opcion=3&p_codigo=' + data.codigoContrario,
+							type: 'get',
+							dataType: 'json',
+							contentType: 'application/json;charset=utf-8',
+							success: function (data) {
+								try {
+									self.validarRespuesta(data, true);
+									self.userDt(data);
+								} catch (err) {
+									if (err != 'mensaje') {
+										$('#loading').modal('hide');
+										self.aviso({level: 1, header: 'Mensaje muy importante', body: err, closeable: false});
+										$('#aviso').modal();
+									}
+								}
+							},
+							error: function (jqXHR, textStatus, errorThrown) {
+								$('#loading').modal('hide');
+								self.aviso({level: 1, header: 'No se logro porcesar la solicitud', body: !_.isUndefined(jqXHR.responseJSON) && !_.isUndefined(jqXHR.responseJSON.mensaje) ? jqXHR.responseJSON.mensaje : errorThrown, closeable: false});
+								$('#aviso').modal();
+							}
+						});
+					}
 				} catch (err) {
 					if (err != 'mensaje') {
 						$('#loading').modal('hide');
@@ -175,7 +373,7 @@ var PrematriculaVM = function () {
 		}
 		$('#loading').modal();
 		$.ajax({
-			url: 'http://zeus.lasalle.edu.co/oar/prematricula/cualquiera.php?opt=pr_oferta_json&p_opcion=1&p_codigo=' + codigo,
+			url: 'http://zeus.lasalle.edu.co/oar/prematricula/cualquiera.php?opt=pr_oferta_json&p_opcion=1&p_codigo=' + codigo + (self.user().perfil == 'NV' ? '&p_tipo=1' : ''),
 			type: 'get',
 			dataType: 'json',
 			contentType: 'application/json;charset=utf-8',
@@ -284,22 +482,45 @@ var PrematriculaVM = function () {
 			$(event.currentTarget).animateCss('shake');
 			alerta('No puede inscribir este horario porque presenta un cruce con su prematricula.', 3);
 			return false;
+		} else if (!self.validarCredMax(self.mPlan(), true)) {
+			$(event.currentTarget).animateCss('shake');
+			alerta('No puede inscribir este horario porque sobrepasa los creditos maximos para el semestre inferior.', 3);
+			return false;
 		}
 		var m = _.clone(self.mPlan());
 		m.grupos = [];
 		m.grupos.push(grupo);
+		/*Esto se agrega por que se adicionaron nuevas propiedades a la prematricula*/
+		m.post = 0;
+		m.propia = 1;
+		/*fin*/
 		self.prematricula.push(m);
 		alerta('Materia inscrita con exito.', 2);
 		$('#gruposModal').modal('hide');
 	};
-	self.eliminar = function (grupo) {
-		self.prematricula.remove(grupo);
-		var m = $('#' + grupo.codMateria);
+	self.confirmar = function (grupo) {
+		self.mPlanDel(grupo);
+		$('#confirmationModal').modal();
+	};
+	self.eliminar = function () {
+		$('#confirmationModal').modal('hide');
+		if (_.isUndefined(self.mPlanDel())) {
+			alerta('Seleccione un grupo para eliminar.', 4);
+			return false;
+		} else if (!self.validarCredMax(self.mPlanDel(), false)) {
+			alerta('No puede eliminar este horario porque sobrepasa los creditos maximos para el semestre inferior.', 3);
+			return false;
+		} else if (self.mPlanDel().grupos[0].eliminable != 1) {
+			alerta('No esta autorizado a eliminar este horario.', 4);
+			return false;
+		}
+		self.prematricula.remove(self.mPlanDel());
+		var m = $('#' + self.mPlanDel().codMateria);
 		if (m.hasClass('success')) {
 			m.removeClass('success');
-			var mp = _.findWhere(self.oferta(), {codMateria: grupo.codMateria});
+			var mp = _.findWhere(self.oferta(), {codMateria: self.mPlanDel().codMateria});
 			if (!_.isUndefined(mp) && _.isEmpty(mp.grupos)) {
-				mp.grupos = grupo.grupos;
+				mp.grupos = self.mPlanDel().grupos;
 				mp.grupos[0].cupo = 1;
 			}
 		}

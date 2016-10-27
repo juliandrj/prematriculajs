@@ -67,6 +67,37 @@
 					</tbody>
 				</table>
 			</div>
+			<div data-bind="if: user().perfil == 'NV' || user().perfil == 'RI'">
+				<div class="panel-footer text-right">
+					<button id="btn-save" type="button" class="btn btn-danger btn-lg animated bounce" data-loading-text="guardando...">
+						<span class="glyphicon glyphicon-floppy-save"></span> Guardar
+					</button>
+				</div>
+			</div>
+		</div>
+		<div class="panel panel-primary">
+			<div class="table-responsive">
+				<table class="table table-bordered">
+					<thead>
+						<tr>
+							<th>Codigo</th>
+							<th>Semestre inferior</th>
+							<th>Creditos maximos</th>
+							<th>Creditos extra autorizados</th>
+							<th>Creditos prematriculados</th>
+						</tr>
+					</thead>
+					<tbody data-bind="foreach: resumenCrs">
+						<tr data-bind="css: {info: $data.resumen == 1}">
+							<td data-bind="text: $data.cod"></td>
+							<td class="text-center" data-bind="text: $data.semInf"></td>
+							<td class="text-center" data-bind="text: $data.crMax"></td>
+							<td class="text-center" data-bind="text: $data.crExt"></td>
+							<td class="text-center" data-bind="text: $data.sumCreds"></td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
 		</div>
 		<div id="prematricula" class="panel panel-primary" data-bind="ifnot: _.isEmpty(prematricula())">
 			<div class="panel-heading">
@@ -101,7 +132,7 @@
 						</tr>
 					</thead>
 					<tbody data-bind="foreach: prematricula">
-						<tr>
+						<tr data-bind="css: {'info': (propia != 1 && post != 1), 'success': (propia == 1 && post == 1), 'warning': (propia != 1 && post == 1)}">
 							<td data-bind="text: semestre"></td>
 							<td data-bind="text: codMateria"></td>
 							<td data-bind="text: nombreMateria"></td>
@@ -115,7 +146,7 @@
 							<!-- ko template: {name: 'tmp-horario', data: grupos[0].horario} --><!-- /ko -->
 							<td class="text-center">
 								<!-- ko if: grupos[0].eliminable == 1 -->
-								<button class="btn btn-danger btn-xs" type="button" title="eliminar" data-bind="click: $root.eliminar" ><i class="fa fa-trash" aria-hidden="true"></i></button>
+								<button class="btn btn-danger btn-xs" type="button" title="eliminar" data-bind="click: $root.confirmar" ><i class="fa fa-trash" aria-hidden="true"></i></button>
 								<!-- /ko -->
 								<!-- ko ifnot: grupos[0].eliminable == 1 -->
 								&nbsp;
@@ -222,6 +253,22 @@
 							</tr>
 						</tfoot>
 					</table>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div class="modal fade" id="confirmationModal" tabindex="-1" aria-labelledby="confirmationModalLabel" role="dialog" aria-hidden="true">
+		<div class="modal-dialog">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h4 class="modal-title" id="confirmationModalLabel">Confirmaci&oacute;n</h4>
+				</div>
+				<div class="modal-body">
+					<p>Est&aacute; usted seguro de eliminar esta asignatura?</p>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-default" data-dismiss="modal">cancelar</button>
+					<button id="btn-eliminar" type="button" class="btn btn-danger" data-bind="click: eliminar">aceptar</button>
 				</div>
 			</div>
 		</div>
