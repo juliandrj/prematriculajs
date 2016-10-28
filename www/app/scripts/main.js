@@ -1,4 +1,4 @@
-var codigo = '40162032';
+var codigo = '40072000';
 //UTILITARIOS
 var alerta = function (texto, tipo) {
 	var tipotxt = undefined;
@@ -118,19 +118,6 @@ var PrematriculaVM = function () {
 		});
 		newPrem = _.sortBy(newPrem, function (g) {return g.semestre + g.codMateria;});
 	});
-	//FUNCIONES PARA QUIENES TIENEN MINIMO DE CREDITOS A PREMATRICULAR
-	self.tieneMinCreditos = function () {
-		var re = new RegExp("^NV|RI$");
-		return !_.isUndefine(self.user()) && re.test(self.user().perfil);
-	};
-	self.minCreditos = function () {
-		if (self.user().perfil == 'RI') {
-			return 9;
-		} else if (self.user().perfil == 'NV') {
-			return self.crMax();
-		}
-	};
-	//FIN MINIMO CREDITOS
 	//------------------------------------------------------------------------------
 	//FUNCIONES PARA EL CALCULO DEL RESUMEN DE CREDITOS
 	// 1. SEMESTRE INFERIOR
@@ -230,6 +217,38 @@ var PrematriculaVM = function () {
 		];
 	}, self);
 	//FIN RESUMEN CREDITOS
+	//------------------------------------------------------------------------------
+	//FUNCIONES PARA QUIENES TIENEN MINIMO DE CREDITOS A PREMATRICULAR
+	self.tieneMinCreditos = function () {
+		var re = new RegExp('^NV|RI$');
+		return !_.isUndefined(self.user()) && re.test(self.user().perfil);
+	};
+	self.esNuevo = ko.computed(function () {
+		var re = new RegExp('^NV$');
+		return !_.isUndefined(self.user()) && re.test(self.user().perfil);
+	}, self);
+	self.minCreditos = function () {
+		if (_.isUndefined(self.user())) {
+			return 999;
+		} else if (self.user().perfil == 'RI') {
+			return 9;
+		} else if (self.user().perfil == 'NV') {
+			return self.crMax();
+		}
+		return 0;
+	};
+	self.cumpleMinCreditos = function () {
+		return self.sumCreds() >= self.minCreditos();
+	};
+	self.cumpleMinCreditosCom = ko.computed(function () {
+		var cumple = self.cumpleMinCreditos();
+		if (cumple) {
+			$('#btn-save').animateCss('tada');
+		}
+		return cumple;
+	}, self);
+	//FIN MINIMO CREDITOS
+	//------------------------------------------------------------------------------
 	self.oferta = ko.observableArray();
 	self.mPlan = ko.observable();
 	self.mPlanDel = ko.observable();
@@ -487,16 +506,55 @@ var PrematriculaVM = function () {
 			alerta('No puede inscribir este horario porque sobrepasa los creditos maximos para el semestre inferior.', 3);
 			return false;
 		}
-		var m = _.clone(self.mPlan());
-		m.grupos = [];
-		m.grupos.push(grupo);
-		/*Esto se agrega por que se adicionaron nuevas propiedades a la prematricula*/
-		m.post = 0;
-		m.propia = 1;
-		/*fin*/
-		self.prematricula.push(m);
-		alerta('Materia inscrita con exito.', 2);
 		$('#gruposModal').modal('hide');
+		if (!self.tieneMinCreditos()) {
+			$('#loading').modal();
+			$.ajax({
+				url: 'http://zeus.lasalle.edu.co/oar/prematricula/dummy.php',
+				type: 'post',
+				//data: datos,
+				dataType: 'json',
+				contentType: 'application/json;charset=utf-8',
+				success: function (data) {
+					try {
+						self.validarRespuesta(data, false);
+						var m = _.clone(self.mPlan());
+						m.grupos = [];
+						m.grupos.push(grupo);
+						/*Esto se agrega por que se adicionaron nuevas propiedades a la prematricula*/
+						m.post = 0;
+						m.propia = 1;
+						/*fin*/
+						self.prematricula.push(m);
+						alerta('Materia inscrita con exito.', 2);
+						$('#loading').modal('hide');
+					} catch (err) {
+						if (err != 'mensaje') {
+							$('#loading').modal('hide');
+							self.aviso({level: 1, header: 'Mensaje muy importante', body: err, closeable: false});
+							$('#aviso').modal();
+						}
+					}
+				},
+				error: function (jqXHR, textStatus, errorThrown) {
+					$('#loading').modal('hide');
+					self.aviso({level: 1, header: 'No se logro porcesar la solicitud', body: !_.isUndefined(jqXHR.responseJSON) && !_.isUndefined(jqXHR.responseJSON.mensaje) ? jqXHR.responseJSON.mensaje : errorThrown, closeable: false});
+					$('#aviso').modal();
+				}
+			});
+		} else {
+			var m = _.clone(self.mPlan());
+			m.grupos = [];
+			m.grupos.push(grupo);
+			/*Esto se agrega por que se adicionaron nuevas propiedades a la prematricula*/
+			m.post = 0;
+			m.propia = 1;
+			/*fin*/
+			self.prematricula.push(m);
+			alerta('Materia inscrita con exito.', 2);
+			$('#aviso-mincred').animateCss('pulse');
+		}
+		
 	};
 	self.confirmar = function (grupo) {
 		self.mPlanDel(grupo);
@@ -514,17 +572,92 @@ var PrematriculaVM = function () {
 			alerta('No esta autorizado a eliminar este horario.', 4);
 			return false;
 		}
-		self.prematricula.remove(self.mPlanDel());
-		var m = $('#' + self.mPlanDel().codMateria);
-		if (m.hasClass('success')) {
-			m.removeClass('success');
-			var mp = _.findWhere(self.oferta(), {codMateria: self.mPlanDel().codMateria});
-			if (!_.isUndefined(mp) && _.isEmpty(mp.grupos)) {
-				mp.grupos = self.mPlanDel().grupos;
-				mp.grupos[0].cupo = 1;
+		
+		if (!self.tieneMinCreditos()) {
+			$('#loading').modal();
+			$.ajax({
+				url: 'http://zeus.lasalle.edu.co/oar/prematricula/dummy.php',
+				type: 'post',
+				//data: datos,
+				dataType: 'json',
+				contentType: 'application/json;charset=utf-8',
+				success: function (data) {
+					try {
+						self.validarRespuesta(data, false);
+						self.prematricula.remove(self.mPlanDel());
+						var m = $('#' + self.mPlanDel().codMateria);
+						if (m.hasClass('success')) {
+							m.removeClass('success');
+							var mp = _.findWhere(self.oferta(), {codMateria: self.mPlanDel().codMateria});
+							if (!_.isUndefined(mp) && _.isEmpty(mp.grupos)) {
+								mp.grupos = self.mPlanDel().grupos;
+								mp.grupos[0].cupo = 1;
+							}
+						}
+						alerta('Grupo eliminado con exito.', 2);
+						$('#loading').modal('hide');
+					} catch (err) {
+						if (err != 'mensaje') {
+							$('#loading').modal('hide');
+							self.aviso({level: 1, header: 'Mensaje muy importante', body: err, closeable: false});
+							$('#aviso').modal();
+						}
+					}
+				},
+				error: function (jqXHR, textStatus, errorThrown) {
+					$('#loading').modal('hide');
+					self.aviso({level: 1, header: 'No se logro porcesar la solicitud', body: !_.isUndefined(jqXHR.responseJSON) && !_.isUndefined(jqXHR.responseJSON.mensaje) ? jqXHR.responseJSON.mensaje : errorThrown, closeable: false});
+					$('#aviso').modal();
+				}
+			});
+		} else {
+			self.prematricula.remove(self.mPlanDel());
+			var m = $('#' + self.mPlanDel().codMateria);
+			if (m.hasClass('success')) {
+				m.removeClass('success');
+				var mp = _.findWhere(self.oferta(), {codMateria: self.mPlanDel().codMateria});
+				if (!_.isUndefined(mp) && _.isEmpty(mp.grupos)) {
+					mp.grupos = self.mPlanDel().grupos;
+					mp.grupos[0].cupo = 1;
+				}
 			}
+			alerta('Grupo eliminado con exito.', 2);
+			$('#aviso-mincred').animateCss('pulse');
 		}
-		alerta('Grupo eliminado con exito.', 2);
+	};
+	self.salvar = function () {
+		if (self.tieneMinCreditos() && self.cumpleMinCreditos()) {
+			$('#loading').modal();
+			$.ajax({
+				url: 'http://zeus.lasalle.edu.co/oar/prematricula/dummy.php',
+				type: 'post',
+				data: ko.toJSON(_.flatten(_.pluck(_.flatten(_.pluck(self.prematricula(), 'grupos')), 'consecutivo'))),
+				dataType: 'json',
+				contentType: 'application/json;charset=utf-8',
+				success: function (data) {
+					try {
+						self.validarRespuesta(data, false);
+						alerta('Prematricula almacenada con exito.', 2);
+						$('#loading').modal('hide');
+					} catch (err) {
+						if (err != 'mensaje') {
+							$('#loading').modal('hide');
+							self.aviso({level: 1, header: 'Mensaje muy importante', body: err, closeable: false});
+							$('#aviso').modal();
+						}
+					}
+				},
+				error: function (jqXHR, textStatus, errorThrown) {
+					$('#loading').modal('hide');
+					self.aviso({level: 1, header: 'No se logro porcesar la solicitud', body: !_.isUndefined(jqXHR.responseJSON) && !_.isUndefined(jqXHR.responseJSON.mensaje) ? jqXHR.responseJSON.mensaje : errorThrown, closeable: false});
+					$('#aviso').modal();
+				}
+			});
+		} else {
+			$('#btn-save').animateCss('shake');
+			alerta('No puede guardar porque no cumple con los requisitos.', 3);
+			return false;
+		}
 	};
 	self.validarRespuesta = function (data, bloqueante) {
 		if (!_.isUndefined(data.exception) || (!_.isUndefined(data.status) && data.status != 'ok')) {

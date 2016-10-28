@@ -40,6 +40,20 @@
 				</h3>
 			</div>
 		</div>
+		<!-- ko if: esNuevo -->
+			<div class="panel panel-danger animated pulse">
+				<div class="panel-heading">
+					<h3 class="panel-title">Importante</h3>
+				</div>
+				<div class="panel-body">
+					<p>Estimados estudiantes:</p>
+					<p>recuerde que si usted no prematricula todas las asignaturas correspondientes a primer semestre, no se activar&aacute; el bot&oacute;n que le permitir&aacute; guardar las asignaturas a cursar. Una vez seleccionadas las asignaturas haga clik en guardar, de lo contrario <strong>no quedar&aacute; almacenada en el sistema</strong>. Para verificar el registro de su prematr&iacute;cula ingrese por la opci&oacute;n consultar prematr&iacute;cula.</p>
+					<div class="well">
+						Si usted tiene problemas con <strong>cupos</strong>, por favor comun&iacute;quese con la Unidad Acad&eacute;mica. <a href="http://registro.lasalle.edu.co/pls/regadm/DIRECTORIO_FAC" target="_blank">En este link encontrar&aacute; la informaci&oacute;n con las extensiones y correos electr&oacute;nicos</a>.
+					</div>
+				</div>
+			</div>
+		<!-- /ko -->
 		<div id="oferta" class="panel panel-primary" data-bind="ifnot: _.isEmpty(oferta())">
 			<div class="panel-heading">
 				<h3 class="panel-title">Recuerde que no le muestra las asignaturas que NO puede cursar por prerrequisito, si una asignatura no est&aacute; programada en el horario comun&iacute;quese con el Programa.</h3>
@@ -67,11 +81,23 @@
 					</tbody>
 				</table>
 			</div>
-			<div data-bind="if: user().perfil == 'NV' || user().perfil == 'RI'">
-				<div class="panel-footer text-right">
-					<button id="btn-save" type="button" class="btn btn-danger btn-lg animated bounce" data-loading-text="guardando...">
-						<span class="glyphicon glyphicon-floppy-save"></span> Guardar
-					</button>
+			<div data-bind="if: tieneMinCreditos">
+				<div class="panel-footer">
+					<div class="row">
+						<div id="aviso-mincred" class="col-xs-8">
+							<!-- ko ifnot: cumpleMinCreditosCom -->
+							<h4 class="text-danger">Le falta prematricular <span data-bind="text: ($root.minCreditos() - $root.sumCreds())"></span> de un m&iacute;nimo de <span data-bind="text: $root.minCreditos()"></span> creditos. Recuerde que su prematricula solo ser&aacute; registrada cuando ingrese la totalidad de asignaturas y de clic en el botón con el icono de guardar.</h4>
+							<!-- /ko -->
+							<!-- ko if: cumpleMinCreditosCom -->
+							<h5 class="text-success">La totalidad de creditos m&iacute;nimos han sido prematriculados, recuerde guardar, de lo contrario no se tendr&aacute;n en cuenta los registros.</h5>
+							<!-- /ko -->
+						</div>
+						<div class="col-xs-4 text-right">
+							<button id="btn-save" type="button" class="btn btn-danger btn-lg" data-bind="enable: cumpleMinCreditosCom, click: salvar">
+								<i class="fa fa-floppy-o" aria-hidden="true"></i> Guardar
+							</button>
+						</div>
+					</div>
 				</div>
 			</div>
 		</div>
