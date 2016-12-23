@@ -1,105 +1,11 @@
-var codigo = '40072000';
-//UTILITARIOS
-var alerta = function (texto, tipo) {
-	var tipotxt = undefined;
-	switch(tipo) {
-	case 1:
-		tipotxt = 'info';
-		break;
-	case 2:
-		tipotxt = 'success';
-		break;
-	case 3:
-		tipotxt = 'warning';
-		break;
-	case 4:
-		tipotxt = 'danger';
-		break;
-	default:
-		tipotxt = 'info';
-	}
-	$.notify({
-		message: texto
-	},{
-		type: tipotxt,
-		z_index: 1090
-	});
-};
-var formatearHora = function (hora) {
-	return _.isUndefined(hora) ? '' : hora.substring(0, 2);
-};
-var ajustarHorarios = function (grupos) {
-	_.each(grupos, function (gr) {
-		if (gr.horario.length != 6) {
-			gr.horario = _.sortBy(gr.horario, function(h){return h.idDia;});
-			var hrs = [];
-			var j = 0;
-			for (var i = 0; i <= 5; i++) {
-				if (j < gr.horario.length && gr.horario[j].idDia == i) {
-					gr.horario[j].hora = _.sortBy(gr.horario[j].hora, 'inicio');
-					hrs.push(gr.horario[j]);
-					j ++;
-				} else {
-					hrs.push(null);
-				}
-			}
-			gr.horario = hrs;
-		}
-	});
-};
-var crearRangos = function (hrs) {
-	var rangos = [];
-	_.each(hrs, function (hr) {
-		if (!_.isNull(hr)) {
-			_.each(hr.hora, function (h) {
-				var start = moment('1900-01-0' + (hr.idDia+1) + ' ' + h.inicio, 'YYYY-MM-DD HH:mm');
-				var end = moment('1900-01-0' + (hr.idDia+1) + ' ' + h.fin, 'YYYY-MM-DD HH:mm');
-				rangos.push(moment.range(start, end));
-			});
-		}
-	});
-	return rangos;
-};
-var validarCruce = function (gr, rgs2, marcar) {
-	var rgs1 = crearRangos(gr.horario);
-	var seCruza = false;
-	_.each(rgs1, function (r1) {
-		_.each(rgs2, function (r2) {
-			if (r1.overlaps(r2)) {
-				seCruza = true;
-				if (marcar) {
-					$('#' + gr.consecutivo).addClass('danger');
-				}
-			}
-		});
-	});
-	return seCruza;
-};
-var validarCruceIns = function (gr, grs) {
-	if (_.isEmpty(grs)) {
-		return false;
-	}
-	return validarCruce(gr, crearRangos(_.flatten(_.pluck(_.flatten(_.pluck(grs, 'grupos')), 'horario'))), false);
-};
-var marcarCruces = function (grs1, grs2) {
-	var rgs2 = crearRangos(_.flatten(_.pluck(grs2, 'horario')));
-	_.each(grs1, function (gr) {
-		validarCruce(gr, rgs2, true);
-	});
-};
-var sumarCreditos = function (prematricula, propia) {
-	var crd = 0;
-	_.each(prematricula, function (g) {
-		if (g.propia == (propia ? 1 : 0)) {
-			crd += g.creditos;
-		}
-	});
-	return crd;
-};
-//FIN UTILITARIOS
 //Objeto para mantener saber cuales materias ya fueron filtradas por cupo.
 var cupos = [];
 //MVVM
+var MateriaItem = function () {
+	var self = this;
+	self.materia = ko.observable();
+	self.selected = ko.observable(false);
+};
 var PrematriculaVM = function () {
 	var self = this;
 	self.user = ko.observable();
@@ -116,7 +22,6 @@ var PrematriculaVM = function () {
 				m.addClass('info');
 			}
 		});
-		newPrem = _.sortBy(newPrem, function (g) {return g.semestre + g.codMateria;});
 	});
 	//------------------------------------------------------------------------------
 	//FUNCIONES PARA EL CALCULO DEL RESUMEN DE CREDITOS
@@ -507,6 +412,9 @@ var PrematriculaVM = function () {
 			return false;
 		}
 		$('#gruposModal').modal('hide');
+		if (_.isUndefined(self.prematricula()) || _.isEmpty(self.prematricula())) {
+			self.prematricula([]);
+		}
 		if (!self.tieneMinCreditos()) {
 			$('#loading').modal();
 			$.ajax({
@@ -668,6 +576,63 @@ var PrematriculaVM = function () {
 		}
 	};
 	self.aviso = ko.observable({level:1, header:'', body:'', closeable: true});
+	//Horario genetico
+	self.materiasSeleccionadasGen = ko.observableArray([]);
+	self.tieneMatriculaCompleta = ko.observable(false);
+	self.poblacionInicial = ko.observable(6);
+	self.numGeneraciones = ko.observable(5);
+	self.individuo = ko.observable();
+	self.creditosGen = ko.computed(function () {
+		if (_.isEmpty(self.materiasSeleccionadasGen())) {
+			return '0/0 (s.i. 0)';
+		}
+		var sinf = _.min(_.pluck(self.materiasSeleccionadasGen(), 'semestre'));
+		var cmax = _.findWhere(self.creditosMax(), {semestre: sinf});
+		var crds = 0;
+		_.each(self.materiasSeleccionadasGen(), function (m) {
+			crds += m.creditos;
+		});
+		self.tieneMatriculaCompleta(crds == cmax.creditos);
+		return crds + '/' + cmax.creditos + ' (s.i. ' + sinf + ')';
+	}, self);
+	self.ejecutarAsistente = function () {
+		$('#geneticModal').modal('hide');
+		$('#loading').modal();
+		var ofert = [];
+		_.each(self.materiasSeleccionadasGen(), function (mat) {
+			var m = _.clone(mat);
+			var p = _.findWhere(self.prematricula(), {codMateria: m.codMateria});
+			m.inscrita = !_.isUndefined(p);
+			if (m.inscrita) {
+				m.grupos = p.grupos;
+			} else {
+				m.grupos = _.reject(mat.grupos, function (g) {
+					return self.user().facultad.sede.sede != g.facultadCursar.sede.sede;
+				});
+			}
+			ofert.push(m);
+		});
+		_.defer(function () {
+			try {
+				var evolution = new Evolucion(ofert);
+				var ind = evolution.calcularUnBuenHorario(self.poblacionInicial(), self.numGeneraciones());
+				self.individuo(ind);
+				$('#loading').modal('hide');
+				$('#individuoModal').modal();
+			} catch (err) {
+				$('#loading').modal('hide');
+				self.aviso({level: 1, header: 'No se logro calcular el horario', body: err.message, closeable: true});
+				$('#aviso').modal();
+			}
+		});
+	};
+	self.inscribirGen = function (cr, event) {
+		$(event.currentTarget).attr('disabled', true);
+		var m = _.clone(cr);
+		m.grupos = [];
+		self.mPlan(m);
+		self.inscribir(cr.grupos[0], event);
+	};
 };
 var premVM = new PrematriculaVM();
 //FIN MVVM
