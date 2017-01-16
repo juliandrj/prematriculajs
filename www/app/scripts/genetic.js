@@ -3,6 +3,12 @@ var Individuo = function () {
 	self.metrica = undefined;
 	self.cromosomas = [];
 	self.getMetrica = function () {
+		return self.getMetrica(false);
+	};
+	self.getMetrica = function (forzar) {
+		if (!_.isUndefined(self.metrica) && !forzar) {
+			return self.metrica;
+		}
 		try {
 			if (_.isUndefined(self.cromosomas) || _.isEmpty(self.cromosomas)) {
 				return 1e6;
@@ -36,6 +42,24 @@ var Individuo = function () {
 			console.log(err);
 			return undefined;
 		}
+	};
+	self.mutar = function (oferta) {
+		if (_.isEmpty(self.cromosomas)) {
+			return false;
+		}
+		var i = Math.ceil(Math.random() * 1000) % self.cromosomas.length;
+		var mat = _.findWhere(oferta, {codMateria: self.cromosomas[i].codMateria});
+		if (_.isUndefined(mat) || mat.grupos.length < 2) {
+			return false;
+		}
+		var grs = _.reject(mat.grupos, function (g) {return g.consecutivo == self.cromosomas[i].grupos[0].consecutivo});
+		var gr = grs[Math.ceil(Math.random() * 1000) % grs.length];
+		if (!validarCruceIns(gr, self.cromosomas)) {
+			self.cromosomas[i].grupos[0] = gr;
+			self.getMetrica(true);
+			return true;
+		}
+		return false;
 	};
 	self.cruzar = function (pareja) {
 		var hijo = new Individuo();
@@ -142,6 +166,10 @@ var Evolucion = function (oferta) {
 			for (var j = i+1; j < Math.ceil(poblacion / 2); j++) {
 				var ni = nuevaGeneracion[i].cruzar(nuevaGeneracion[j]);
 				if (!_.isUndefined(ni)) {
+					var intentosMut = 0;
+					while (!ni.mutar(self.oferta) && intentosMut < 10) {
+						intentosMut++;
+					}
 					nuevaGeneracion.push(ni);
 				}
 			}
@@ -153,13 +181,14 @@ var Evolucion = function (oferta) {
 		self.init(poblacionInicial);
 		do {
 			self.individuos = _.sortBy(self.individuos, function (i) {return i.getMetrica();});
-			console.log(' >> ' + generacion + ': ' + self.individuos[0].metrica + ' (' + self.individuos.length + ')');
-			if (!_.isUndefined(self.individuos[0].metrica) && self.individuos[0].metrica == 0) {
+			console.log(' >> ' + generacion + ': ' + self.individuos[0].getMetrica() + ' (' + self.individuos.length + ')');
+			if (self.individuos[0].getMetrica() == 0) {
 				return self.individuos[0];
 			}
 			self.getNuevaGeneracion(poblacionInicial);
 			generacion ++;
 		} while (generacion < numGneraciones);
+		self.individuos = _.sortBy(self.individuos, function (i) {return i.getMetrica();});
 		return self.individuos[0];
 	};
 };
